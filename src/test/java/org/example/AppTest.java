@@ -3,12 +3,318 @@
  */
 package org.example;
 
+import org.example.models.Book;
+import org.example.models.BorrowingRecord;
+import org.example.models.Faculty;
+import org.example.models.Guest;
+import org.example.models.Library;
+import org.example.models.Student;
+import org.example.models.User;
+import org.example.models.UserType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class AppTest {
-    @Test void appHasAGreeting() {
-        App classUnderTest = new App();
-        assertNotNull(classUnderTest.getGreeting(), "app should have a greeting");
+    private Library library;
+    private Book testBook;
+    private User testUser;
+
+    @BeforeEach
+    void setUp() {
+        library = new Library();
+        testBook = new Book("Test Book", "Test Author", "1234567890", "Fiction");
+        testUser = new Student("John Doe", "user123", "john@example.com");
+    }
+
+    @Test
+    void testAddBook() {
+        library.addBook("Test Book", "Test Author", "1234567890", "Fiction");
+
+        Book foundBook = library.findBook("1234567890");
+        assertNotNull(foundBook);
+        assertEquals("Test Book", foundBook.getTitle());
+        assertEquals("Test Author", foundBook.getAuthor());
+        assertEquals("Fiction", foundBook.getGenre());
+        assertTrue(foundBook.isAvailable());
+    }
+
+    @Test
+    void testAddBookDuplicateIsbn() {
+        library.addBook("Book 1", "Author 1", "123", "Genre 1");
+        library.addBook("Book 2", "Author 2", "123", "Genre 2"); // Same ISBN
+
+        Book foundBook = library.findBook("123");
+        assertNotNull(foundBook);
+        assertEquals("Book 1", foundBook.getTitle()); // Should keep first book
+    }
+
+    @Test
+    void testRemoveBookExisting() {
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+        assertTrue(library.removeBook("123"));
+        assertNull(library.findBook("123"));
+    }
+
+    @Test
+    void testRemoveBookNonExisting() {
+        assertFalse(library.removeBook("non-existing-isbn"));
+    }
+
+    @Test
+    void testFindBookExisting() {
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+        Book foundBook = library.findBook("123");
+        assertNotNull(foundBook);
+        assertEquals("123", foundBook.getIsbn());
+    }
+
+    @Test
+    void testFindBookNonExisting() {
+        assertNull(library.findBook("non-existing-isbn"));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "   ", "\t", "\n"})
+    void testSearchBooksWithEmptyQuery(String query) {
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+        List<Book> result = library.searchBooks(query);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testSearchBooksByTitle() {
+        library.addBook("Java Programming", "Author 1", "1", "Programming");
+        library.addBook("Python Basics", "Author 2", "2", "Programming");
+
+        List<Book> result = library.searchBooks("java");
+        assertEquals(1, result.size());
+        assertEquals("Java Programming", result.get(0).getTitle());
+    }
+
+    @Test
+    void testSearchBooksByAuthor() {
+        library.addBook("Book 1", "John Smith", "1", "Fiction");
+        library.addBook("Book 2", "Jane Doe", "2", "Fiction");
+
+        List<Book> result = library.searchBooks("smith");
+        assertEquals(1, result.size());
+        assertEquals("John Smith", result.get(0).getAuthor());
+    }
+
+    @Test
+    void testSearchBooksByGenre() {
+        library.addBook("Book 1", "Author 1", "1", "Science Fiction");
+        library.addBook("Book 2", "Author 2", "2", "Romance");
+
+        List<Book> result = library.searchBooks("fiction");
+        assertEquals(1, result.size());
+        assertEquals("Science Fiction", result.get(0).getGenre());
+    }
+
+    @Test
+    void testSearchBooksCaseInsensitive() {
+        library.addBook("JAVA PROGRAMMING", "AUTHOR", "1", "PROGRAMMING");
+
+        List<Book> result = library.searchBooks("java");
+        assertEquals(1, result.size());
+    }
+
+    @ParameterizedTest
+    @EnumSource(UserType.class)
+    void testRegisterUser(UserType userType) {
+        String userId = "user_" + userType.name().toLowerCase();
+        library.registerUser("Test User", userId, "test@example.com", userType);
+
+        User foundUser = library.findUser(userId);
+        assertNotNull(foundUser);
+        assertEquals(userType, foundUser.getUserType());
+    }
+
+    @Test
+    void testRegisterUserDuplicate() {
+        library.registerUser("User 1", "user123", "user1@example.com", UserType.STUDENT);
+        library.registerUser("User 2", "user123", "user2@example.com", UserType.FACULTY); // Same ID
+
+        User foundUser = library.findUser("user123");
+        assertNotNull(foundUser);
+        assertEquals(UserType.STUDENT, foundUser.getUserType()); // Should keep first user type
+    }
+
+    @Test
+    void testFindUserExisting() {
+        library.registerUser("Test User", "user1234", "test@example.com", UserType.STUDENT);
+        User foundUser = library.findUser("user1234");
+        assertNotNull(foundUser);
+        assertEquals("user1234", foundUser.getUserId());
+    }
+
+    @Test
+    void testFindUserNonExisting() {
+        assertNull(library.findUser("non-existing-user"));
+    }
+
+    @Test
+    void testBorrowBookSuccess() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        assertTrue(library.borrowBook("user123", "123"));
+
+        User user = library.findUser("user123");
+        Book book = library.findBook("123");
+
+        assertFalse(book.isAvailable());
+        assertEquals(1, user.getBorrowedBooks().size());
+        assertTrue(user.getBorrowedBooks().contains(book));
+    }
+
+    @Test
+    void testBorrowBookNonExistingUser() {
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+        assertFalse(library.borrowBook("non-existing-user", "123"));
+    }
+
+    @Test
+    void testBorrowBookNonExistingBook() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        assertFalse(library.borrowBook("user123", "non-existing-isbn"));
+    }
+
+    @Test
+    void testBorrowBookAlreadyBorrowed() {
+        library.registerUser("User 1", "user1", "user1@example.com", UserType.STUDENT);
+        library.registerUser("User 2", "user2", "user2@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        // First user borrows successfully
+        assertTrue(library.borrowBook("user1", "123"));
+
+        // Second user tries to borrow same book
+        assertFalse(library.borrowBook("user2", "123"));
+    }
+
+    @Test
+    void testBorrowBookMaxBooksReached() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+
+        // Student can borrow max 3 books
+        library.addBook("Book 1", "Author 1", "1", "Fiction");
+        library.addBook("Book 2", "Author 2", "2", "Fiction");
+        library.addBook("Book 3", "Author 3", "3", "Fiction");
+        library.addBook("Book 4", "Author 4", "4", "Fiction");
+
+        assertTrue(library.borrowBook("user123", "1"));
+        assertTrue(library.borrowBook("user123", "2"));
+        assertTrue(library.borrowBook("user123", "3"));
+        assertFalse(library.borrowBook("user123", "4")); // Should fail - max reached
+    }
+
+    @Test
+    void testReturnBookSuccess() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        library.borrowBook("user123", "123");
+        assertTrue(library.returnBook("user123", "123"));
+
+        User user = library.findUser("user123");
+        Book book = library.findBook("123");
+
+        assertTrue(book.isAvailable());
+        assertTrue(user.getBorrowedBooks().isEmpty());
+    }
+
+    @Test
+    void testReturnBookNonExistingUser() {
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+        assertFalse(library.returnBook("non-existing-user", "123"));
+    }
+
+    @Test
+    void testReturnBookNonExistingBook() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        assertFalse(library.returnBook("user123", "non-existing-isbn"));
+    }
+
+    @Test
+    void testReturnBookAlreadyAvailable() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        assertFalse(library.returnBook("user123", "123")); // Book wasn't borrowed
+    }
+
+    @Test
+    void testReturnBookNotBorrowedByUser() {
+        library.registerUser("User 1", "user1", "user1@example.com", UserType.STUDENT);
+        library.registerUser("User 2", "user2", "user2@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        library.borrowBook("user1", "123");
+        assertFalse(library.returnBook("user2", "123")); // User 2 tries to return User 1's book
+    }
+
+    @Test
+    void testGetOverdueBooks() {
+        library.registerUser("Test User", "user123", "test@example.com", UserType.STUDENT);
+        library.addBook("Test Book", "Test Author", "123", "Fiction");
+
+        library.borrowBook("user123", "123");
+
+
+        List<BorrowingRecord> overdueBooks = library.getOverdueBooks();
+
+        assertTrue(overdueBooks.size() == 1);
+    }
+
+    @Test
+    void testUserTypeSpecificLimits() {
+        // Test Student limits
+        User student = new Student("Student", "student1", "student@example.com");
+        assertEquals(3, student.getMaxBooks());
+        assertEquals(14, student.getBorrowDays());
+        assertEquals(0.50, student.getFinePerDay());
+
+        // Test Faculty limits
+        User faculty = new Faculty("Faculty", "faculty1", "faculty@example.com");
+        assertEquals(10, faculty.getMaxBooks());
+        assertEquals(30, faculty.getBorrowDays());
+        assertEquals(0.0, faculty.getFinePerDay());
+
+        // Test Guest limits
+        User guest = new Guest("Guest", "guest1", "guest@example.com");
+        assertEquals(1, guest.getMaxBooks());
+        assertEquals(7, guest.getBorrowDays());
+        assertEquals(0.0, guest.getFinePerDay());
+    }
+
+    @Test
+    void testCanBorrowMethod() {
+        User student = new Student("Student", "student1", "student@example.com");
+
+        assertTrue(student.canBorrow()); // Initially can borrow
+
+        // Simulate borrowing books
+        Book book1 = new Book("Book 1", "Author 1", "1", "Fiction");
+        Book book2 = new Book("Book 2", "Author 2", "2", "Fiction");
+        Book book3 = new Book("Book 3", "Author 3", "3", "Fiction");
+
+        student.getBorrowedBooks().add(book1);
+        assertTrue(student.canBorrow());
+
+        student.getBorrowedBooks().add(book2);
+        assertTrue(student.canBorrow());
+
+        student.getBorrowedBooks().add(book3);
+        assertFalse(student.canBorrow()); // Max reached
     }
 }
