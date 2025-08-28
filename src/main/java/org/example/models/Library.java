@@ -29,6 +29,10 @@ public class Library implements LibraryOperations {
         return new ArrayList<>(books.values());
     }
 
+    public List<User> showAllUsers() {
+        return new ArrayList<>(users.values());
+    }
+
     /**
      * Добавление книги в библиотеку.
      * @param title  Название.

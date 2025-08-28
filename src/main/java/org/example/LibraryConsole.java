@@ -195,10 +195,24 @@ public class LibraryConsole {
 
     private void viewAllUsers() {
         System.out.println("\n--- All Users ---");
-        // В текущей реализации нет метода для получения всех пользователей
-        // Для демонстрации просто покажем, что эта функция доступна
-        System.out.println("User list functionality would be implemented here.");
-        System.out.println("(Currently users can be searched by ID in View User Details)");
+        List<User> users = library.showAllUsers();
+
+
+        if (users.isEmpty()) {
+            System.out.println("No Users.");
+            return;
+        }
+
+        for (int i = 0; i < users.size(); i++) {
+            User user = users.get(i);
+            System.out.printf("%d. %s %s %s %s%n",
+                    i + 1,
+                    user.getUserId(),
+                    user.getName(),
+                    user.getEmail(),
+                    user.getUserType()
+            );
+        }
     }
 
     private void viewUserDetails() {

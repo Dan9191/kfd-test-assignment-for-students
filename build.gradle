@@ -23,6 +23,10 @@ application {
     mainClass = 'org.example.LibraryConsole'
 }
 
+run {
+    standardInput = System.in
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }
